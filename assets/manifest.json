@@ -1,6 +1,6 @@
 {
-  "name": "Snake Lineup",
-  "short_name": "Snake Lineup",
+  "name": "snake_lineup",
+  "short_name": "snake_lineup",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
