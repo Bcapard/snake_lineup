@@ -458,7 +458,7 @@ app.layout = html.Div(
                         ),
                     ]),
                     html.Div(style={"height": "14px"}),
-                    html.Div(style={"padding": "16px", "border": "1px solid #333", "borderRadius": "12px"}, children=[
+                    html.Div(style={"padding": "16px", "border": "1px solid #333", "borderRadius": "12px", "display": "none"}, children=[
                         html.H4("Players — composites & seeding"),
                         dash_table.DataTable(
                             id="snake-seeding-table",
