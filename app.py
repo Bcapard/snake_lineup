@@ -438,7 +438,7 @@ app.layout = html.Div(
                         dcc.Dropdown(id="snake-attending", options=[], value=None, multi=True, placeholder="(defaults to all saved players)"),
                         html.Br(),
                         html.Button("Generate Lineups", id="snake-generate", n_clicks=0, style={"background": "#0b5ed7", "color": "white"}),
-                        html.Button("Export CSV", id="snake-export", n_clicks=0, style={"marginLeft": "8px"}),
+                        html.Button("Export CSV", id="snake-export", n_clicks=0, style={"marginLeft": "8px", "display": "none"}),
                         html.Div(id="snake-err", style={"marginTop": "10px", "color": "#b00020"}),
                         html.Div(id="snake-msg", style={"marginTop": "6px", "color": "#088a2a"}),
                     ]),
@@ -806,7 +806,7 @@ def snake_generate(n, attending_ids, k_on, periods, store_players, store_weights
         seeded_view.to_csv(EXPORT_SEEDING, index=False)
         if not wide_df.empty:
             wide_df.to_csv(EXPORT_WIDE, index=False)
-        msg = f"Generated {periods} periods. Exported: lineups({EXPORT_LINEUPS}), seeding({EXPORT_SEEDING}), wide({EXPORT_WIDE})."
+        msg = f"Generated {periods} periods."
     except Exception as e:
         msg = f"Generated {periods} periods. Export failed: {e}"
 
