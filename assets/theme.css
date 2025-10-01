@@ -1,0 +1,48 @@
+:root{
+  --navy:#0E2B5C;
+  --orange:#F57C00;
+  --gold:#FFB400;
+  --red:#E53935;
+  --gray-700:#4E5565;
+  --gray-200:#C5D2DF;
+  --paper:#FFFFFF;
+  --bg:#F4F7FB;
+  --border:#E0E6EF;
+}
+
+/* Page */
+body { background: var(--bg); color: var(--navy); }
+
+/* Cards / panels */
+.panel, .dash-table-container, .u10-card {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+/* Buttons */
+button, .btn {
+  background: var(--orange);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+}
+button:hover { filter: brightness(0.95); }
+
+/* Tabs */
+.u10-tabs .tab {
+  background: var(--bg);
+  color: var(--navy);
+  border-color: var(--border);
+}
+.u10-tabs .tab--selected {
+  background: var(--paper);
+  color: var(--navy);
+  border-top: 3px solid var(--orange);  /* selected top line */
+  border-color: var(--border);
+}
+.u10-tabs .tab:hover { background:#f9fbff; }
+
+/* Status text */
+.status-ok { color: var(--orange); }
+.status-err { color: var(--red); }
