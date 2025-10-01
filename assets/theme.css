@@ -41,8 +41,8 @@ html, body {
 
 .u10-tabs .tab--selected,
 .tab--selected.u10-tabs {
-  background: var(--paper);
-  color: var(--navy);
+  background: var(--navy);
+  color: #fff !important;
   border-top: 3px solid var(--orange) !important; /* override default blue */
   border-color: var(--border);
 }
