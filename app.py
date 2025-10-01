@@ -322,7 +322,24 @@ app.index_string = """
 app.layout = html.Div(
     style={"maxWidth": "1200px", "margin": "0 auto", "padding": "24px"},
     children=[
-        html.H2("Snake Lineup Generator"),
+        # Header row with icon + title
+        html.Div(
+            style={
+                "display": "flex",
+                "alignItems": "center",
+                "gap": "12px",
+                "marginBottom": "12px",
+            },
+            children=[
+                html.Img(
+                    src="/assets/app-icon.png?v=1",  # update filename if different
+                    alt="App icon",
+                    draggable="false",
+                    style={"width": "36px", "height": "36px", "objectFit": "contain"},
+                ),
+                html.H2("Snake Lineup Generator", style={"margin": 0}),
+            ],
+        ),
         dcc.Tabs(
             id="tabs",
             value="tab-players",
