@@ -322,7 +322,7 @@ app.index_string = """
 app.layout = html.Div(
     style={"maxWidth": "1200px", "margin": "0 auto", "padding": "24px"},
     children=[
-        html.H2("Team Lineup — Data Manager"),
+        html.H2("Snake Lineup Generator"),
         dcc.Tabs(
             id="tabs",
             value="tab-players",
