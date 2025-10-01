@@ -540,7 +540,7 @@ def players_handle_upload(contents, filename):
     Input("players-store", "data"),            # hydration from localStorage
     Input("players-pending-upload", "data"),   # fresh upload
     Input("players-load-saved", "n_clicks"),   # manual load
-    prevent_initial_call=False
+    prevent_initial_call="initial_duplicate",
 )
 def players_seed_table(store_data, pending, n_load):
     trig = ctx.triggered_id
