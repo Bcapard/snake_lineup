@@ -35,6 +35,9 @@ NUM_PERIODS_DEFAULT = 8
 PLAYERS_ON_COURT_DEFAULT = 5
 MAX_ATTENDING = 12
 
+# If you ever want to also persist to server files, set env USE_SERVER_PERSIST=1
+USE_SERVER_PERSIST = os.getenv("USE_SERVER_PERSIST", "0") == "1"
+
 # =========================================
 # HELPERS: Shared
 # =========================================
@@ -78,6 +81,9 @@ def players_load():
     return None
 
 def players_save(df: pd.DataFrame):
+    """Server-side save (optional). Disabled unless USE_SERVER_PERSIST=1."""
+    if not USE_SERVER_PERSIST:
+        return
     records = df[PLAYER_COLUMNS].replace({np.nan: None}).to_dict(orient="records")
     PERSIST_PLAYERS.parent.mkdir(parents=True, exist_ok=True)
     with open(PERSIST_PLAYERS, "w", encoding="utf-8") as f:
@@ -135,6 +141,9 @@ def weights_load():
     return None
 
 def weights_save(df: pd.DataFrame):
+    """Server-side save (optional). Disabled unless USE_SERVER_PERSIST=1."""
+    if not USE_SERVER_PERSIST:
+        return
     records = df.replace({np.nan: None}).to_dict(orient="records")
     PERSIST_WEIGHTS.parent.mkdir(parents=True, exist_ok=True)
     with open(PERSIST_WEIGHTS, "w", encoding="utf-8") as f:
@@ -320,7 +329,7 @@ app.layout = html.Div(
             children=[
                 # ---------- TAB 1 ----------
                 dcc.Tab(label="1) Players — Upload / Edit / Save", value="tab-players", children=[
-                    dcc.Store(id="players-store"),
+                    dcc.Store(id="players-store", storage_type="local"),    # persist in this browser
                     dcc.Store(id="players-pending-upload"),
                     html.Div(style={"marginTop": "12px", "padding": "16px", "border": "1px solid #333", "borderRadius": "12px"}, children=[
                         html.H4("Step 1 — Upload Players (CSV/XLSX)"),
@@ -370,7 +379,7 @@ app.layout = html.Div(
                 ]),
                 # ---------- TAB 2 ----------
                 dcc.Tab(label="2) Weights — Upload / Edit / Save", value="tab-weights", children=[
-                    dcc.Store(id="weights-store"),
+                    dcc.Store(id="weights-store", storage_type="local"),    # persist in this browser
                     html.Div(style={"marginTop": "12px", "padding": "16px", "border": "1px solid #333", "borderRadius": "12px"}, children=[
                         html.H4("Weights — Upload (CSV/XLSX)"),
                         html.P(f"Expected tidy format: columns {WEIGHTS_COLUMNS} — Metric in {WEIGHTS_ALLOWED_METRICS}, weights sum to {WEIGHTS_TARGET_SUM}."),
@@ -527,24 +536,40 @@ def players_handle_upload(contents, filename):
 
 @app.callback(
     Output("players-table", "data"),
-    Output("players-store", "data"),
-    Input("players-pending-upload", "data"),
-    Input("players-load-saved", "n_clicks"),
-    prevent_initial_call=False
+    Output("players-store", "data", allow_duplicate=True),  # allow duplicate across callbacks
+    Input("players-store", "data"),            # hydration from localStorage
+    Input("players-pending-upload", "data"),   # fresh upload
+    Input("players-load-saved", "n_clicks"),   # manual load
+    prevent_initial_call="initial_duplicate",
 )
-def players_seed_table(pending, n_load):
+def players_seed_table(store_data, pending, n_load):
     trig = ctx.triggered_id
+
+    # 1) Fresh upload wins and becomes the new truth (local)
     if trig == "players-pending-upload" and pending:
         return pending, pending
+
+    # 2) Manual "Load Saved" → prefer this browser's local copy
     if trig == "players-load-saved" and n_load:
+        if store_data:
+            return store_data, store_data
         df = players_load()
         if df is not None:
             data = df.replace({np.nan: None}).to_dict(orient="records")
             return data, data
+        data = players_empty_table().replace({np.nan: None}).to_dict(orient="records")
+        return data, data
+
+    # 3) Initial load → if local exists, use it
+    if store_data:
+        return store_data, store_data
+
+    # 4) Fallback to server file (if present) or empty row
     df0 = players_load()
     if df0 is not None:
         data = df0.replace({np.nan: None}).to_dict(orient="records")
         return data, data
+
     data = players_empty_table().replace({np.nan: None}).to_dict(orient="records")
     return data, data
 
@@ -563,7 +588,7 @@ def players_add_row(n, rows):
 @app.callback(
     Output("players-validation", "children"),
     Output("players-save-status", "children"),
-    Output("players-store", "data", allow_duplicate=True),
+    Output("players-store", "data", allow_duplicate=True),  # update localStorage only
     Input("players-save", "n_clicks"),
     State("players-table", "data"),
     prevent_initial_call=True
@@ -582,9 +607,10 @@ def players_save_cb(n, rows):
     issues = players_validate(df)
     if issues:
         return [html.Ul([html.Li(i) for i in issues])], "", no_update
-    players_save(df)
+    # Server write disabled by default; rely on localStorage
+    players_save(df)  # no-op unless USE_SERVER_PERSIST=1
     clean_records = df.replace({np.nan: None}).to_dict(orient="records")
-    return "", "Saved! Players are now persistent.", clean_records
+    return "", "Saved! (This browser)", clean_records
 
 # ---------- TAB 2 CALLBACKS ----------
 @app.callback(
@@ -594,28 +620,27 @@ def players_save_cb(n, rows):
     Output("weights-err", "children"),
     Output("weights-sum", "children"),
     Output("weights-table", "data"),
+    Input("weights-store", "data"),            # hydration from localStorage
     Input("weights-uploader", "contents"),
     Input("weights-save", "n_clicks"),
     Input("weights-load-saved", "n_clicks"),
     Input("weights-reset", "n_clicks"),
     State("weights-uploader", "filename"),
     State("weights-table", "data"),
-    State("weights-store", "data"),
     prevent_initial_call=False,
 )
-def weights_master_cb(contents, n_save, n_load, n_reset, filename, table_rows, store_data):
+def weights_master_cb(store_data, contents, n_save, n_load, n_reset, filename, table_rows):
     trig = ctx.triggered_id
-    if table_rows:
-        df = pd.DataFrame(table_rows)
-    else:
-        df_saved = weights_load()
-        df = df_saved.copy() if df_saved is not None else weights_empty_table()
-    out_store = store_data
+
+    # Start from the best available current source:
+    cur_df = (pd.DataFrame(store_data) if store_data is not None and store_data != []
+              else (weights_load() if weights_load() is not None else weights_empty_table()))
+
     out_file = no_update
     out_msg = ""
     out_err = ""
     out_sum = ""
-    out_table = df.replace({np.nan: None}).to_dict(orient="records")
+    out_table = cur_df.replace({np.nan: None}).to_dict(orient="records")
 
     try:
         if trig == "weights-uploader" and contents:
@@ -624,48 +649,61 @@ def weights_master_cb(contents, n_save, n_load, n_reset, filename, table_rows, s
             if issues:
                 out_err = html.Ul([html.Li(i) for i in issues]); out_msg = ""
             else:
+                cur_df = df_up  # upload becomes the new truth (local)
+                out_table = cur_df.replace({np.nan: None}).to_dict(orient="records")
                 out_msg = "Weights uploaded."; out_err = ""
-                out_store = df_up.replace({np.nan: None}).to_dict(orient="records"); out_table = out_store
-            wsum = float(df_up["Weight"].sum()) if "Weight" in df_up.columns else 0.0
-            out_sum = f"Current sum: {wsum:g} / {WEIGHTS_TARGET_SUM}"
             out_file = f"Uploaded: {filename}"
+            out_sum = f"Current sum: {float(cur_df['Weight'].sum()):g} / {WEIGHTS_TARGET_SUM}"
+
         elif trig == "weights-save" and n_save:
-            df_cur = pd.DataFrame(out_table)
+            df_cur = pd.DataFrame(table_rows) if table_rows else cur_df
             issues = weights_validate(df_cur)
             if issues:
                 out_err = html.Ul([html.Li(i) for i in issues]); out_msg = ""
             else:
-                weights_save(df_cur)
-                out_store = df_cur.replace({np.nan: None}).to_dict(orient="records")
-                out_msg = "Saved! Weights are now persistent."; out_err = ""
-            wsum = float(df_cur["Weight"].sum()) if "Weight" in df_cur.columns else 0.0
-            out_sum = f"Current sum: {wsum:g} / {WEIGHTS_TARGET_SUM}"
+                cur_df = df_cur
+                out_table = cur_df.replace({np.nan: None}).to_dict(orient="records")
+                weights_save(cur_df)  # no-op unless USE_SERVER_PERSIST=1
+                out_msg = "Saved! (This browser)"; out_err = ""
+            out_sum = f"Current sum: {float(cur_df['Weight'].sum()):g} / {WEIGHTS_TARGET_SUM}"
+
         elif trig == "weights-load-saved" and n_load:
-            df_s = weights_load()
-            if df_s is None:
-                df_s = weights_empty_table(); out_msg = "No saved weights found. Loaded defaults."
+            if store_data:
+                cur_df = pd.DataFrame(store_data)
+                out_msg = "Loaded weights from this browser."
             else:
-                out_msg = "Loaded saved weights."
+                df_s = weights_load()
+                if df_s is None:
+                    cur_df = weights_empty_table(); out_msg = "No server copy. Loaded defaults."
+                else:
+                    cur_df = df_s; out_msg = "Loaded server copy."
             out_err = ""
-            out_store = df_s.replace({np.nan: None}).to_dict(orient="records"); out_table = out_store
-            wsum = float(df_s["Weight"].sum()) if "Weight" in df_s.columns else 0.0
-            out_sum = f"Current sum: {wsum:g} / {WEIGHTS_TARGET_SUM}"
+            out_table = cur_df.replace({np.nan: None}).to_dict(orient="records")
+            out_sum = f"Current sum: {float(cur_df['Weight'].sum()):g} / {WEIGHTS_TARGET_SUM}"
+
         elif trig == "weights-reset" and n_reset:
-            df_d = weights_empty_table()
-            out_store = df_d.replace({np.nan: None}).to_dict(orient="records"); out_table = out_store
+            cur_df = weights_empty_table()
+            out_table = cur_df.replace({np.nan: None}).to_dict(orient="records")
             out_msg = "Reset to even weights."; out_err = ""
-            wsum = float(df_d["Weight"].sum()); out_sum = f"Current sum: {wsum:g} / {WEIGHTS_TARGET_SUM}"
+            out_sum = f"Current sum: {float(cur_df['Weight'].sum()):g} / {WEIGHTS_TARGET_SUM}"
+
         else:
-            df0 = weights_load()
-            if df0 is None:
-                df0 = weights_empty_table(); out_msg = "Initialized with default weights."
+            # Initial page load — if local exists, use it. Otherwise fallback (server or defaults)
+            if store_data:
+                cur_df = pd.DataFrame(store_data); out_msg = "Loaded weights from this browser."
             else:
-                out_msg = "Loaded saved weights."
-            out_store = df0.replace({np.nan: None}).to_dict(orient="records"); out_table = out_store
-            wsum = float(df0["Weight"].sum()); out_sum = f"Current sum: {wsum:g} / {WEIGHTS_TARGET_SUM}"
+                df0 = weights_load()
+                cur_df = df0 if df0 is not None else weights_empty_table()
+                out_msg = "Loaded server copy." if df0 is not None else "Initialized with default weights."
+            out_err = ""
+            out_table = cur_df.replace({np.nan: None}).to_dict(orient="records")
+            out_sum = f"Current sum: {float(cur_df['Weight'].sum()):g} / {WEIGHTS_TARGET_SUM}"
+
     except Exception as e:
         out_err = f"Error: {e}"
 
+    # The store is your persistent browser copy
+    out_store = cur_df.replace({np.nan: None}).to_dict(orient="records")
     return out_store, out_file, out_msg, out_err, out_sum, out_table
 
 # ---------- TAB 3 CALLBACKS ----------
@@ -673,16 +711,26 @@ def weights_master_cb(contents, n_save, n_load, n_reset, filename, table_rows, s
     Output("snake-attending", "options"),
     Output("snake-attending", "value"),
     Input("tabs", "value"),
+    Input("players-store", "data"),   # read from browser
     prevent_initial_call=False
 )
-def snake_seed_attending(tab):
+def snake_seed_attending(tab, store_players):
     if tab != "tab-snake":
         return no_update, no_update
-    players = players_load()
-    if players is None or players.empty:
+
+    # Prefer local browser copy; fallback to server file
+    if store_players:
+        players_df = pd.DataFrame(store_players)
+    else:
+        players_df = players_load()
+        if players_df is None or players_df.empty:
+            return [], None
+
+    if players_df is None or players_df.empty:
         return [], None
-    options = [{"label": f'{r["name"]} (#{r["jersey"]})', "value": int(r["player_id"])} for _, r in players.iterrows()]
-    values = [int(r["player_id"]) for _, r in players.iterrows()]
+
+    options = [{"label": f'{r["name"]} (#{r["jersey"]})', "value": int(r["player_id"])} for _, r in players_df.iterrows()]
+    values = [int(r["player_id"]) for _, r in players_df.iterrows()]
     values = values[:MAX_ATTENDING]
     return options, values
 
@@ -702,33 +750,33 @@ def snake_seed_attending(tab):
     State("snake-attending", "value"),
     State("snake-k", "value"),
     State("snake-periods", "value"),
+    State("players-store", "data"),   # read players from browser
+    State("weights-store", "data"),   # read weights from browser
     prevent_initial_call=True
 )
-def snake_generate(n, attending_ids, k_on, periods):
+def snake_generate(n, attending_ids, k_on, periods, store_players, store_weights):
     if not n:
         return (no_update, no_update, no_update, no_update, no_update, no_update,
                 no_update, no_update, no_update, no_update, no_update)
 
-    players = players_load()
-    weights = weights_load()
+    # Get players/weights from localStorage first; fallback to server files if needed
+    players = pd.DataFrame(store_players) if store_players else players_load()
+    weights = pd.DataFrame(store_weights) if store_weights else weights_load()
+
+    empty_cols = [{"name":"period","id":"period"}]
+    names_cols = [{"name":"period","id":"period"},{"name":"players","id":"players"}]
+
     if players is None or players.empty:
-        empty_cols = [{"name":"period","id":"period"}]
-        names_cols = [{"name":"period","id":"period"},{"name":"players","id":"players"}]
         return [], [], [], empty_cols, [], names_cols, None, None, None, "", "No saved players found (Tab 1)."
+
     if weights is None or weights.empty:
         weights = weights_empty_table()
 
     if not attending_ids:
-        empty_cols = [{"name":"period","id":"period"}]
-        names_cols = [{"name":"period","id":"period"},{"name":"players","id":"players"}]
         return [], [], [], empty_cols, [], names_cols, None, None, None, "", "No attending players selected."
     if k_on is None or k_on < 1:
-        empty_cols = [{"name":"period","id":"period"}]
-        names_cols = [{"name":"period","id":"period"},{"name":"players","id":"players"}]
         return [], [], [], empty_cols, [], names_cols, None, None, None, "", "Players on court must be at least 1."
     if periods is None or periods < 1:
-        empty_cols = [{"name":"period","id":"period"}]
-        names_cols = [{"name":"period","id":"period"},{"name":"players","id":"players"}]
         return [], [], [], empty_cols, [], names_cols, None, None, None, "", "Number of periods must be at least 1."
 
     if len(attending_ids) > MAX_ATTENDING:
@@ -736,14 +784,10 @@ def snake_generate(n, attending_ids, k_on, periods):
 
     players_att = players[players["player_id"].isin(attending_ids)].copy()
     if len(players_att) < k_on:
-        empty_cols = [{"name":"period","id":"period"}]
-        names_cols = [{"name":"period","id":"period"},{"name":"players","id":"players"}]
         return [], [], [], empty_cols, [], names_cols, None, None, None, "", f"Need at least {k_on} attending players (selected: {len(players_att)})."
 
     wissues = weights_validate(weights.copy())
     if wissues:
-        empty_cols = [{"name":"period","id":"period"}]
-        names_cols = [{"name":"period","id":"period"},{"name":"players","id":"players"}]
         return [], [], [], empty_cols, [], names_cols, None, None, None, "", f"Weights invalid: {'; '.join(wissues)}"
 
     comp_df = compute_composites(players_att, weights)
@@ -751,8 +795,6 @@ def snake_generate(n, attending_ids, k_on, periods):
     try:
         seeded_view, schedule_df = build_full_schedule(comp_df, periods=periods, k_on=k_on)
     except Exception as e:
-        empty_cols = [{"name":"period","id":"period"}]
-        names_cols = [{"name":"period","id":"period"},{"name":"players","id":"players"}]
         return [], [], [], empty_cols, [], names_cols, None, None, None, "", f"Schedule build error: {e}"
 
     wide_df = schedule_to_wide(schedule_df, seeded_view)
@@ -778,10 +820,10 @@ def snake_generate(n, attending_ids, k_on, periods):
 
     # Names table payload
     if names_df.empty:
-        names_cols = [{"name":"period","id":"period"},{"name":"players","id":"players"}]
+        n_cols = [{"name":"period","id":"period"},{"name":"players","id":"players"}]
         names_data = []
     else:
-        names_cols = [{"name": c, "id": c} for c in names_df.columns]
+        n_cols = [{"name": c, "id": c} for c in names_df.columns]
         names_data = names_df.to_dict(orient="records")
 
     return (
@@ -790,7 +832,7 @@ def snake_generate(n, attending_ids, k_on, periods):
         wide_data,
         wide_cols,
         names_data,
-        names_cols,
+        n_cols,
         seeded_view.replace({np.nan: None}).to_dict(orient="records"),
         schedule_df.replace({np.nan: None}).to_dict(orient="records"),
         wide_data,
