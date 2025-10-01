@@ -346,7 +346,7 @@ app.layout = html.Div(
             className="u10-tabs",
             children=[
                 # ---------- TAB 1 ----------
-                dcc.Tab(label="1) Players — Upload / Edit / Save", value="tab-players", children=[
+                dcc.Tab(label="1) Players — Upload / Edit / Save", value="tab-players", className="u10-tabs", children=[
                     dcc.Store(id="players-store", storage_type="local"),    # persist in this browser
                     dcc.Store(id="players-pending-upload"),
                     html.Div(style={"marginTop": "12px", "padding": "16px", "border": "1px solid #333", "borderRadius": "12px"}, children=[
