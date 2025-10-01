@@ -343,6 +343,7 @@ app.layout = html.Div(
         dcc.Tabs(
             id="tabs",
             value="tab-players",
+            className="u10-tabs",
             children=[
                 # ---------- TAB 1 ----------
                 dcc.Tab(label="1) Players — Upload / Edit / Save", value="tab-players", children=[
@@ -395,7 +396,7 @@ app.layout = html.Div(
                     ]),
                 ]),
                 # ---------- TAB 2 ----------
-                dcc.Tab(label="2) Weights — Upload / Edit / Save", value="tab-weights", children=[
+                dcc.Tab(label="2) Weights — Upload / Edit / Save", value="tab-weights", className="u10-tabs", children=[
                     dcc.Store(id="weights-store", storage_type="local"),    # persist in this browser
                     html.Div(style={"marginTop": "12px", "padding": "16px", "border": "1px solid #333", "borderRadius": "12px"}, children=[
                         html.H4("Weights — Upload (CSV/XLSX)"),
@@ -440,7 +441,7 @@ app.layout = html.Div(
                     ]),
                 ]),
                 # ---------- TAB 3 ----------
-                dcc.Tab(label="3) Lineup — Snake Generator", value="tab-snake", children=[
+                dcc.Tab(label="3) Lineup — Snake Generator", value="tab-snake", className="u10-tabs", children=[
                     dcc.Store(id="snake-seed-store"),
                     dcc.Store(id="snake-lineups-store"),
                     dcc.Store(id="snake-lineups-wide-store"),
