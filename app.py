@@ -469,8 +469,8 @@ app.layout = html.Div(
                                 style={"flex": "1 1 220px", "height": "40px", "padding": "0 10px", "borderRadius": "8px", "border": "1px solid #999"}
                             ),
                             html.Button("Select All", id="snake-select-all", n_clicks=0),
-                            html.Button("Clear", id="snake-clear", n_clicks=0),
-                            html.Button("Invert", id="snake-invert", "display": "none", n_clicks=0),
+                            html.Button("Clear", id="snake-clear", n_clicks=0, style={"display": "none"}),
+                            html.Button("Invert", id="snake-invert", n_clicks=0),
                             html.Div(id="snake-count", style={"marginLeft": "auto", "fontWeight": 600}),
                         ]),
 
