@@ -453,28 +453,7 @@ app.layout = html.Div(
                         ]),
                         html.Br(),
                         html.Label("Select attending players (max 12)"),
-                        # === REPLACED: Dropdown -> Checklist chips (same id) ===
-                        html.Div(
-                            [
-                                dcc.Checklist(
-                                    id="snake-attending",
-                                    options=[],
-                                    value=[],  # seeded by callback
-                                    inputClassName="chip-input",
-                                    labelClassName="chip-label",
-                                    className="chip-group",
-                                )
-                            ],
-                            className="chip-wrap",
-                            style={"marginTop": "6px"}
-                        ),
-                        html.Div(
-                            [
-                                html.Button("Select all", id="snake-select-all", n_clicks=0, className="btn-secondary"),
-                                html.Button("Clear", id="snake-clear", n_clicks=0, className="btn-secondary"),
-                            ],
-                            style={"marginTop": "10px", "display": "flex", "gap": "8px"}
-                        ),
+                        dcc.Dropdown(id="snake-attending", options=[], value=None, multi=True, placeholder="(defaults to all saved players)"),
                         html.Br(),
                         html.Button("Generate Lineups", id="snake-generate", n_clicks=0, style={"background": "#0b5ed7", "color": "white"}),
                         html.Button("Export CSV", id="snake-export", n_clicks=0, style={"marginLeft": "8px", "display": "none"}),
@@ -547,7 +526,7 @@ app.layout = html.Div(
                             ],
                             page_size=40,
                             style_table={"overflowX": "auto"},
-                            style_cell={"minWidth": 90, "maxWidth": 140, "WhiteSpace": "normal"},
+                            style_cell={"minWidth": 90, "maxWidth": 140, "whiteSpace": "normal"},
                         ),
                     ]),
                 ]),
@@ -763,34 +742,15 @@ def snake_seed_attending(tab, store_players):
     else:
         players_df = players_load()
         if players_df is None or players_df.empty:
-            return [], []   # checklist expects list
+            return [], None
 
     if players_df is None or players_df.empty:
-        return [], []       # checklist expects list
+        return [], None
 
     options = [{"label": f'{r["name"]} (#{r["jersey"]})', "value": int(r["player_id"])} for _, r in players_df.iterrows()]
     values = [int(r["player_id"]) for _, r in players_df.iterrows()]
     values = values[:MAX_ATTENDING]
     return options, values
-
-# NEW: bulk select/clear for chip checklist
-@app.callback(
-    Output("snake-attending", "value"),
-    Input("snake-select-all", "n_clicks"),
-    Input("snake-clear", "n_clicks"),
-    State("snake-attending", "options"),
-    prevent_initial_call=True
-)
-def chip_bulk_select(n_all, n_clear, options):
-    trig = ctx.triggered_id
-    if not options:
-        return no_update
-    all_ids = [opt["value"] for opt in options]
-    if trig == "snake-select-all":
-        return all_ids[:MAX_ATTENDING]
-    if trig == "snake-clear":
-        return []
-    return no_update
 
 @app.callback(
     Output("snake-seeding-table", "data"),
