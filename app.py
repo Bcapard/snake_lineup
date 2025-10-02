@@ -466,11 +466,11 @@ app.layout = html.Div(
                                 type="text",
                                 placeholder="Search name or #...",
                                 debounce=True,
-                                style={"flex": "1 1 220px", "height": "40px", "padding": "0 10px", "borderRadius": "8px", "border": "1px solid #999"}
+                                style={"flex": "1 1 220px", "height": "40px", "padding": "0 10px", "borderRadius": "8px", "border": "1px solid #999", "display": "none"}
                             ),
                             html.Button("Select All", id="snake-select-all", n_clicks=0),
-                            html.Button("Clear", id="snake-clear", n_clicks=0, style={"display": "none"}),
-                            html.Button("Invert", id="snake-invert", n_clicks=0),
+                            html.Button("Clear", id="snake-clear", n_clicks=0),
+                            html.Button("Invert", id="snake-invert", n_clicks=0, style={"display": "none"}),
                             html.Div(id="snake-count", style={"marginLeft": "auto", "fontWeight": 600}),
                         ]),
 
