@@ -428,16 +428,16 @@ app.layout = html.Div(
                             dropdown={"Metric": {"options": [{"label": m, "value": m} for m in WEIGHTS_ALLOWED_METRICS]}},
                             page_size=10,
                             style_table={"overflowX": "auto"},
-                            style_cell":{"minWidth": 120, "maxWidth": 220, "whiteSpace": "normal"},
+                            style_cell={"minWidth": 120, "maxWidth": 220, "whiteSpace": "normal"},
                         ),
-                        html.Div(id="weights-msg", style={"marginTop": "10px", "color": "#088a2a"}),
-                        html.Div(id="weights-err", style={"marginTop": "6px", "color": "#b00020"}),
-                        html.Div(id="weights-sum", style={"marginTop": "6px", "fontStyle": "italic"}),
                         html.Div(style={"marginTop": "10px", "display": "flex", "gap": "8px", "flexWrap": "wrap"}, children=[
                             html.Button("Reset to Even", id="weights-reset", n_clicks=0),
                             html.Button("Save (Persist)", id="weights-save", n_clicks=0, style={"background": "#0b5ed7", "color": "white"}),
                             html.Button("Load Saved", id="weights-load-saved", n_clicks=0),
                         ]),
+                        html.Div(id="weights-msg", style={"marginTop": "10px", "color": "#088a2a"}),
+                        html.Div(id="weights-err", style={"marginTop": "6px", "color": "#b00020"}),
+                        html.Div(id="weights-sum", style={"marginTop": "6px", "fontStyle": "italic"}),
                     ]),
                 ]),
                 # ---------- TAB 3 ----------
@@ -453,16 +453,7 @@ app.layout = html.Div(
                         ]),
                         html.Br(),
                         html.Label("Select attending players (max 12)"),
-                        # === CHANGE 1: chips via Checklist (same id) ===
-                        html.Div(children=[
-                            dcc.Checklist(
-                                id="snake-attending",
-                                options=[],
-                                value=[],  # will be seeded by callback
-                                labelStyle={"display": "inline-block", "padding": "6px 10px", "margin": "4px",
-                                            "border": "1px solid #999", "borderRadius": "16px", "cursor": "pointer"}
-                            )
-                        ], style={"marginTop": "6px"}),
+                        dcc.Dropdown(id="snake-attending", options=[], value=None, multi=True, placeholder="(defaults to all saved players)"),
                         html.Br(),
                         html.Button("Generate Lineups", id="snake-generate", n_clicks=0, style={"background": "#0b5ed7", "color": "white"}),
                         html.Button("Export CSV", id="snake-export", n_clicks=0, style={"marginLeft": "8px", "display": "none"}),
@@ -513,7 +504,7 @@ app.layout = html.Div(
                             ],
                             page_size=20,
                             style_table={"overflowX": "auto"},
-                            style_cell={"minWidth": 90, "maxWidth": 150, "WhiteSpace": "normal"},
+                            style_cell={"minWidth": 90, "maxWidth": 150, "whiteSpace": "normal"},
                         ),
                     ]),
                     html.Div(style={"height": "14px"}),
@@ -751,11 +742,10 @@ def snake_seed_attending(tab, store_players):
     else:
         players_df = players_load()
         if players_df is None or players_df.empty:
-            # === CHANGE 2: checklist wants an empty list, not None ===
-            return [], []
+            return [], None
 
     if players_df is None or players_df.empty:
-        return [], []
+        return [], None
 
     options = [{"label": f'{r["name"]} (#{r["jersey"]})', "value": int(r["player_id"])} for _, r in players_df.iterrows()]
     values = [int(r["player_id"]) for _, r in players_df.iterrows()]
