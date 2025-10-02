@@ -389,7 +389,7 @@ app.layout = html.Div(
                         ),
                         html.Div(style={"marginTop": "10px", "display": "flex", "gap": "8px", "flexWrap": "wrap"}, children=[
                             html.Button("Add Row", id="players-add-row", n_clicks=0),
-                            html.Button("Save (Persist)", id="players-save", n_clicks=0, style={"background": "#0b5ed7", "color": "white"}),
+                            html.Button("Save (Persist)", id="players-save", n_clicks=0, style={"background": "#0E2B5C", "color": "white"}),
                             html.Button("Load Saved", id="players-load-saved", n_clicks=0),
                         ]),
                         html.Div(id="players-validation", style={"marginTop": "12px", "color": "#b00020"}),
@@ -433,7 +433,7 @@ app.layout = html.Div(
                         ),
                         html.Div(style={"marginTop": "10px", "display": "flex", "gap": "8px", "flexWrap": "wrap"}, children=[
                             html.Button("Reset to Even", id="weights-reset", n_clicks=0),
-                            html.Button("Save (Persist)", id="weights-save", n_clicks=0, style={"background": "#0b5ed7", "color": "white"}),
+                            html.Button("Save (Persist)", id="weights-save", n_clicks=0, style={"background": "#0E2B5C", "color": "white"}),
                             html.Button("Load Saved", id="weights-load-saved", n_clicks=0),
                         ]),
                         html.Div(id="weights-msg", style={"marginTop": "10px", "color": "#088a2a"}),
@@ -470,7 +470,7 @@ app.layout = html.Div(
                             ),
                             html.Button("Select All", id="snake-select-all", n_clicks=0),
                             html.Button("Clear", id="snake-clear", n_clicks=0),
-                            html.Button("Invert", id="snake-invert", n_clicks=0),
+                            html.Button("Invert", id="snake-invert", "display": "none", n_clicks=0),
                             html.Div(id="snake-count", style={"marginLeft": "auto", "fontWeight": 600}),
                         ]),
 
@@ -498,7 +498,7 @@ app.layout = html.Div(
                         html.Div(id="snake-picker-err", style={"marginTop": "8px", "color": "#b00020"}),
 
                         html.Br(),
-                        html.Button("Generate Lineups", id="snake-generate", n_clicks=0, style={"background": "#0b5ed7", "color": "white"}),
+                        html.Button("Generate Lineups", id="snake-generate", n_clicks=0, style={"background": "#0E2B5C", "color": "white"}),
                         html.Button("Export CSV", id="snake-export", n_clicks=0, style={"marginLeft": "8px", "display": "none"}),
                         html.Div(id="snake-err", style={"marginTop": "10px", "color": "#b00020"}),
                         html.Div(id="snake-msg", style={"marginTop": "6px", "color": "#088a2a"}),
