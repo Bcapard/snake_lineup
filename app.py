@@ -322,13 +322,31 @@ app.index_string = """
 app.layout = html.Div(
     style={"maxWidth": "1200px", "margin": "0 auto", "padding": "24px"},
     children=[
-        html.H2("Team Lineup — Data Manager"),
+        # Header row with icon + title
+        html.Div(
+            style={
+                "display": "flex",
+                "alignItems": "center",
+                "gap": "12px",
+                "marginBottom": "12px",
+            },
+            children=[
+                html.Img(
+                    src="/assets/app-icon.png?v=1",  # update filename if different
+                    alt="App icon",
+                    draggable="false",
+                    style={"width": "36px", "height": "36px", "objectFit": "contain"},
+                ),
+                html.H2("Snake Lineup Generator", style={"margin": 0}),
+            ],
+        ),
         dcc.Tabs(
             id="tabs",
             value="tab-players",
+            className="u10-tabs",
             children=[
                 # ---------- TAB 1 ----------
-                dcc.Tab(label="1) Players — Upload / Edit / Save", value="tab-players", children=[
+                dcc.Tab(label="1) Players — Upload / Edit / Save", value="tab-players", className="u10-tabs", children=[
                     dcc.Store(id="players-store", storage_type="local"),    # persist in this browser
                     dcc.Store(id="players-pending-upload"),
                     html.Div(style={"marginTop": "12px", "padding": "16px", "border": "1px solid #333", "borderRadius": "12px"}, children=[
@@ -378,7 +396,7 @@ app.layout = html.Div(
                     ]),
                 ]),
                 # ---------- TAB 2 ----------
-                dcc.Tab(label="2) Weights — Upload / Edit / Save", value="tab-weights", children=[
+                dcc.Tab(label="2) Weights — Upload / Edit / Save", value="tab-weights", className="u10-tabs", children=[
                     dcc.Store(id="weights-store", storage_type="local"),    # persist in this browser
                     html.Div(style={"marginTop": "12px", "padding": "16px", "border": "1px solid #333", "borderRadius": "12px"}, children=[
                         html.H4("Weights — Upload (CSV/XLSX)"),
@@ -423,7 +441,7 @@ app.layout = html.Div(
                     ]),
                 ]),
                 # ---------- TAB 3 ----------
-                dcc.Tab(label="3) Lineup — Snake Generator", value="tab-snake", children=[
+                dcc.Tab(label="3) Lineup — Snake Generator", value="tab-snake", className="u10-tabs", children=[
                     dcc.Store(id="snake-seed-store"),
                     dcc.Store(id="snake-lineups-store"),
                     dcc.Store(id="snake-lineups-wide-store"),
@@ -435,12 +453,13 @@ app.layout = html.Div(
                         ]),
                         html.Br(),
                         html.Label("Select attending players (max 12)"),
+                        # === REPLACED: Dropdown -> Checklist chips (same id) ===
                         html.Div(
                             [
                                 dcc.Checklist(
                                     id="snake-attending",
                                     options=[],
-                                    value=[],  # will be set by seeding callback
+                                    value=[],  # seeded by callback
                                     inputClassName="chip-input",
                                     labelClassName="chip-label",
                                     className="chip-group",
@@ -458,7 +477,7 @@ app.layout = html.Div(
                         ),
                         html.Br(),
                         html.Button("Generate Lineups", id="snake-generate", n_clicks=0, style={"background": "#0b5ed7", "color": "white"}),
-                        html.Button("Export CSV", id="snake-export", n_clicks=0, style={"marginLeft": "8px"}),
+                        html.Button("Export CSV", id="snake-export", n_clicks=0, style={"marginLeft": "8px", "display": "none"}),
                         html.Div(id="snake-err", style={"marginTop": "10px", "color": "#b00020"}),
                         html.Div(id="snake-msg", style={"marginTop": "6px", "color": "#088a2a"}),
                     ]),
@@ -506,7 +525,7 @@ app.layout = html.Div(
                             ],
                             page_size=20,
                             style_table={"overflowX": "auto"},
-                            style_cell({"minWidth": 90, "maxWidth": 150, "whiteSpace": "normal"}),
+                            style_cell={"minWidth": 90, "maxWidth": 150, "whiteSpace": "normal"},
                         ),
                     ]),
                     html.Div(style={"height": "14px"}),
@@ -528,7 +547,7 @@ app.layout = html.Div(
                             ],
                             page_size=40,
                             style_table={"overflowX": "auto"},
-                            style_cell({"minWidth": 90, "maxWidth": 140, "whiteSpace": "normal"}),
+                            style_cell={"minWidth": 90, "maxWidth": 140, "WhiteSpace": "normal"},
                         ),
                     ]),
                 ]),
@@ -744,10 +763,10 @@ def snake_seed_attending(tab, store_players):
     else:
         players_df = players_load()
         if players_df is None or players_df.empty:
-            return [], []
+            return [], []   # checklist expects list
 
     if players_df is None or players_df.empty:
-        return [], []
+        return [], []       # checklist expects list
 
     options = [{"label": f'{r["name"]} (#{r["jersey"]})', "value": int(r["player_id"])} for _, r in players_df.iterrows()]
     values = [int(r["player_id"]) for _, r in players_df.iterrows()]
@@ -845,7 +864,7 @@ def snake_generate(n, attending_ids, k_on, periods, store_players, store_weights
         seeded_view.to_csv(EXPORT_SEEDING, index=False)
         if not wide_df.empty:
             wide_df.to_csv(EXPORT_WIDE, index=False)
-        msg = f"Generated {periods} periods. Exported: lineups({EXPORT_LINEUPS}), seeding({EXPORT_SEEDING}), wide({EXPORT_WIDE})."
+        msg = f"Generated {periods} periods."
     except Exception as e:
         msg = f"Generated {periods} periods. Export failed: {e}"
 
