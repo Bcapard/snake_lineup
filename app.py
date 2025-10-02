@@ -435,13 +435,12 @@ app.layout = html.Div(
                         ]),
                         html.Br(),
                         html.Label("Select attending players (max 12)"),
-                        # ---- REPLACED: dropdown -> checklist chips (same id) ----
                         html.Div(
                             [
                                 dcc.Checklist(
                                     id="snake-attending",
                                     options=[],
-                                    value=[],
+                                    value=[],  # will be set by seeding callback
                                     inputClassName="chip-input",
                                     labelClassName="chip-label",
                                     className="chip-group",
