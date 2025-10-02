@@ -460,7 +460,7 @@ app.layout = html.Div(
 
                         # --- New Mobile-Friendly Attending Picker ---
                         html.Label(f"Select attending players (max {MAX_ATTENDING})"),
-                        html.Div(style={"display": "flex", "gap": "8px", "flexWrap": "wrap", "alignItems": "center", padding: 10px}, children=[
+                        html.Div(style={"display": "flex", "gap": "8px", "flexWrap": "wrap", "alignItems": "center", "padding": "10px"}, children=[
                             dcc.Input(
                                 id="snake-search",
                                 type="text",
