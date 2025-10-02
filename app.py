@@ -270,6 +270,7 @@ def schedule_to_wide(schedule_df: pd.DataFrame, seeded: pd.DataFrame) -> pd.Data
         subset = schedule_df[schedule_df["period"] == p]
         for _, r in subset.iterrows():
             wide.loc[wide["period"] == p, r["name"]] = str(int(r["pos"]))
+
     return wide
 
 def schedule_to_names(schedule_df: pd.DataFrame) -> pd.DataFrame:
@@ -332,7 +333,7 @@ app.layout = html.Div(
             },
             children=[
                 html.Img(
-                    src="/assets/app-icon.png?v=1",  # update filename if different
+                    src="/assets/app-icon.png?v=1",
                     alt="App icon",
                     draggable="false",
                     style={"width": "36px", "height": "36px", "objectFit": "contain"},
@@ -347,7 +348,7 @@ app.layout = html.Div(
             children=[
                 # ---------- TAB 1 ----------
                 dcc.Tab(label="1) Players — Upload / Edit / Save", value="tab-players", className="u10-tabs", children=[
-                    dcc.Store(id="players-store", storage_type="local"),    # persist in this browser
+                    dcc.Store(id="players-store", storage_type="local"),
                     dcc.Store(id="players-pending-upload"),
                     html.Div(style={"marginTop": "12px", "padding": "16px", "border": "1px solid #333", "borderRadius": "12px"}, children=[
                         html.H4("Step 1 — Upload Players (CSV/XLSX)"),
@@ -388,7 +389,7 @@ app.layout = html.Div(
                         ),
                         html.Div(style={"marginTop": "10px", "display": "flex", "gap": "8px", "flexWrap": "wrap"}, children=[
                             html.Button("Add Row", id="players-add-row", n_clicks=0),
-                            html.Button("Save (Persist)", id="players-save", n_clicks=0, style={"background": "#0b5ed7", "color": "white"}),
+                            html.Button("Save (Persist)", id="players-save", n_clicks=0, style={"background": "#0E2B5C", "color": "white"}),
                             html.Button("Load Saved", id="players-load-saved", n_clicks=0),
                         ]),
                         html.Div(id="players-validation", style={"marginTop": "12px", "color": "#b00020"}),
@@ -397,7 +398,7 @@ app.layout = html.Div(
                 ]),
                 # ---------- TAB 2 ----------
                 dcc.Tab(label="2) Weights — Upload / Edit / Save", value="tab-weights", className="u10-tabs", children=[
-                    dcc.Store(id="weights-store", storage_type="local"),    # persist in this browser
+                    dcc.Store(id="weights-store", storage_type="local"),
                     html.Div(style={"marginTop": "12px", "padding": "16px", "border": "1px solid #333", "borderRadius": "12px"}, children=[
                         html.H4("Weights — Upload (CSV/XLSX)"),
                         html.P(f"Expected tidy format: columns {WEIGHTS_COLUMNS} — Metric in {WEIGHTS_ALLOWED_METRICS}, weights sum to {WEIGHTS_TARGET_SUM}."),
@@ -432,7 +433,7 @@ app.layout = html.Div(
                         ),
                         html.Div(style={"marginTop": "10px", "display": "flex", "gap": "8px", "flexWrap": "wrap"}, children=[
                             html.Button("Reset to Even", id="weights-reset", n_clicks=0),
-                            html.Button("Save (Persist)", id="weights-save", n_clicks=0, style={"background": "#0b5ed7", "color": "white"}),
+                            html.Button("Save (Persist)", id="weights-save", n_clicks=0, style={"background": "#0E2B5C", "color": "white"}),
                             html.Button("Load Saved", id="weights-load-saved", n_clicks=0),
                         ]),
                         html.Div(id="weights-msg", style={"marginTop": "10px", "color": "#088a2a"}),
@@ -442,9 +443,13 @@ app.layout = html.Div(
                 ]),
                 # ---------- TAB 3 ----------
                 dcc.Tab(label="3) Lineup — Snake Generator", value="tab-snake", className="u10-tabs", children=[
+                    # stores for the mobile picker
+                    dcc.Store(id="snake-attending-prev", data=[]),
+                    dcc.Store(id="snake-attending-all", data=[]),
                     dcc.Store(id="snake-seed-store"),
                     dcc.Store(id="snake-lineups-store"),
                     dcc.Store(id="snake-lineups-wide-store"),
+
                     html.Div(style={"marginTop": "12px", "padding": "16px", "border": "1px solid #333", "borderRadius": "12px"}, children=[
                         html.H4("Inputs"),
                         html.Div(style={"display": "flex", "gap": "20px", "flexWrap": "wrap"}, children=[
@@ -452,14 +457,53 @@ app.layout = html.Div(
                             html.Div(children=[html.Label("Number of periods"), dcc.Input(id="snake-periods", type="number", min=1, max=16, step=1, value=NUM_PERIODS_DEFAULT)]),
                         ]),
                         html.Br(),
-                        html.Label("Select attending players (max 12)"),
-                        dcc.Dropdown(id="snake-attending", options=[], value=None, multi=True, placeholder="(defaults to all saved players)"),
+
+                        # --- New Mobile-Friendly Attending Picker ---
+                        html.Label(f"Select attending players (max {MAX_ATTENDING})"),
+                        html.Div(style={"display": "flex", "gap": "8px", "flexWrap": "wrap", "alignItems": "center", "padding": "10px"}, children=[
+                            dcc.Input(
+                                id="snake-search",
+                                type="text",
+                                placeholder="Search name or #...",
+                                debounce=True,
+                                style={"flex": "1 1 220px", "height": "40px", "padding": "0 10px", "borderRadius": "8px", "border": "1px solid #999", "display": "none"}
+                            ),
+                            html.Button("Select All", id="snake-select-all", n_clicks=0),
+                            html.Button("Clear", id="snake-clear", n_clicks=0),
+                            html.Button("Invert", id="snake-invert", n_clicks=0, style={"display": "none"}),
+                            html.Div(id="snake-count", style={"marginLeft": "auto", "fontWeight": 600}),
+                        ]),
+
+                        # Checklist with big tap targets
+                        dcc.Checklist(
+                            id="snake-attending-list",
+                            options=[],
+                            value=[],
+                            labelStyle={
+                                "display": "inline-flex",
+                                "alignItems": "center",
+                                "gap": "10px",
+                                "padding": "10px 12px",
+                                "margin": "6px",
+                                "border": "1px solid #999",
+                                "borderRadius": "10px",
+                                "minWidth": "140px",
+                                "userSelect": "none",
+                                "fontSize": "16px"
+                            },
+                            inputStyle={"width": "20px", "height": "20px"},
+                            style={"marginTop": "10px", "display": "flex", "flexWrap": "wrap"}
+                        ),
+
+                        html.Div(id="snake-picker-err", style={"marginTop": "8px", "color": "#b00020"}),
+
                         html.Br(),
-                        html.Button("Generate Lineups", id="snake-generate", n_clicks=0, style={"background": "#0b5ed7", "color": "white"}),
+                        html.Button("Generate Lineups", id="snake-generate", n_clicks=0, style={"background": "#0E2B5C", "color": "white"}),
                         html.Button("Export CSV", id="snake-export", n_clicks=0, style={"marginLeft": "8px", "display": "none"}),
                         html.Div(id="snake-err", style={"marginTop": "10px", "color": "#b00020"}),
                         html.Div(id="snake-msg", style={"marginTop": "6px", "color": "#088a2a"}),
                     ]),
+
                     html.Div(style={"height": "14px"}),
                     html.Div(style={"padding": "16px", "border": "1px solid #333", "borderRadius": "12px"}, children=[
                         html.H4("Lineups by Period (wide)"),
@@ -554,20 +598,16 @@ def players_handle_upload(contents, filename):
 
 @app.callback(
     Output("players-table", "data"),
-    Output("players-store", "data", allow_duplicate=True),  # allow duplicate across callbacks
-    Input("players-store", "data"),            # hydration from localStorage
-    Input("players-pending-upload", "data"),   # fresh upload
-    Input("players-load-saved", "n_clicks"),   # manual load
+    Output("players-store", "data", allow_duplicate=True),
+    Input("players-store", "data"),
+    Input("players-pending-upload", "data"),
+    Input("players-load-saved", "n_clicks"),
     prevent_initial_call="initial_duplicate",
 )
 def players_seed_table(store_data, pending, n_load):
     trig = ctx.triggered_id
-
-    # 1) Fresh upload wins and becomes the new truth (local)
     if trig == "players-pending-upload" and pending:
         return pending, pending
-
-    # 2) Manual "Load Saved" → prefer this browser's local copy
     if trig == "players-load-saved" and n_load:
         if store_data:
             return store_data, store_data
@@ -577,17 +617,12 @@ def players_seed_table(store_data, pending, n_load):
             return data, data
         data = players_empty_table().replace({np.nan: None}).to_dict(orient="records")
         return data, data
-
-    # 3) Initial load → if local exists, use it
     if store_data:
         return store_data, store_data
-
-    # 4) Fallback to server file (if present) or empty row
     df0 = players_load()
     if df0 is not None:
         data = df0.replace({np.nan: None}).to_dict(orient="records")
         return data, data
-
     data = players_empty_table().replace({np.nan: None}).to_dict(orient="records")
     return data, data
 
@@ -606,7 +641,7 @@ def players_add_row(n, rows):
 @app.callback(
     Output("players-validation", "children"),
     Output("players-save-status", "children"),
-    Output("players-store", "data", allow_duplicate=True),  # update localStorage only
+    Output("players-store", "data", allow_duplicate=True),
     Input("players-save", "n_clicks"),
     State("players-table", "data"),
     prevent_initial_call=True
@@ -625,8 +660,7 @@ def players_save_cb(n, rows):
     issues = players_validate(df)
     if issues:
         return [html.Ul([html.Li(i) for i in issues])], "", no_update
-    # Server write disabled by default; rely on localStorage
-    players_save(df)  # no-op unless USE_SERVER_PERSIST=1
+    players_save(df)
     clean_records = df.replace({np.nan: None}).to_dict(orient="records")
     return "", "Saved! (This browser)", clean_records
 
@@ -638,7 +672,7 @@ def players_save_cb(n, rows):
     Output("weights-err", "children"),
     Output("weights-sum", "children"),
     Output("weights-table", "data"),
-    Input("weights-store", "data"),            # hydration from localStorage
+    Input("weights-store", "data"),
     Input("weights-uploader", "contents"),
     Input("weights-save", "n_clicks"),
     Input("weights-load-saved", "n_clicks"),
@@ -649,11 +683,8 @@ def players_save_cb(n, rows):
 )
 def weights_master_cb(store_data, contents, n_save, n_load, n_reset, filename, table_rows):
     trig = ctx.triggered_id
-
-    # Start from the best available current source:
     cur_df = (pd.DataFrame(store_data) if store_data is not None and store_data != []
               else (weights_load() if weights_load() is not None else weights_empty_table()))
-
     out_file = no_update
     out_msg = ""
     out_err = ""
@@ -667,7 +698,7 @@ def weights_master_cb(store_data, contents, n_save, n_load, n_reset, filename, t
             if issues:
                 out_err = html.Ul([html.Li(i) for i in issues]); out_msg = ""
             else:
-                cur_df = df_up  # upload becomes the new truth (local)
+                cur_df = df_up
                 out_table = cur_df.replace({np.nan: None}).to_dict(orient="records")
                 out_msg = "Weights uploaded."; out_err = ""
             out_file = f"Uploaded: {filename}"
@@ -681,7 +712,7 @@ def weights_master_cb(store_data, contents, n_save, n_load, n_reset, filename, t
             else:
                 cur_df = df_cur
                 out_table = cur_df.replace({np.nan: None}).to_dict(orient="records")
-                weights_save(cur_df)  # no-op unless USE_SERVER_PERSIST=1
+                weights_save(cur_df)
                 out_msg = "Saved! (This browser)"; out_err = ""
             out_sum = f"Current sum: {float(cur_df['Weight'].sum()):g} / {WEIGHTS_TARGET_SUM}"
 
@@ -706,7 +737,6 @@ def weights_master_cb(store_data, contents, n_save, n_load, n_reset, filename, t
             out_sum = f"Current sum: {float(cur_df['Weight'].sum()):g} / {WEIGHTS_TARGET_SUM}"
 
         else:
-            # Initial page load — if local exists, use it. Otherwise fallback (server or defaults)
             if store_data:
                 cur_df = pd.DataFrame(store_data); out_msg = "Loaded weights from this browser."
             else:
@@ -720,21 +750,24 @@ def weights_master_cb(store_data, contents, n_save, n_load, n_reset, filename, t
     except Exception as e:
         out_err = f"Error: {e}"
 
-    # The store is your persistent browser copy
     out_store = cur_df.replace({np.nan: None}).to_dict(orient="records")
     return out_store, out_file, out_msg, out_err, out_sum, out_table
 
-# ---------- TAB 3 CALLBACKS ----------
+# ---------- TAB 3: NEW MOBILE PICKER CALLBACKS ----------
 @app.callback(
-    Output("snake-attending", "options"),
-    Output("snake-attending", "value"),
+    Output("snake-attending-list", "options"),
+    Output("snake-attending-list", "value"),
+    Output("snake-attending-prev", "data"),
+    Output("snake-attending-all", "data"),
+    Output("snake-count", "children"),
     Input("tabs", "value"),
-    Input("players-store", "data"),   # read from browser
+    Input("players-store", "data"),
+    State("snake-attending-list", "value"),
     prevent_initial_call=False
 )
-def snake_seed_attending(tab, store_players):
+def snake_seed_attending(tab, store_players, current_val):
     if tab != "tab-snake":
-        return no_update, no_update
+        return no_update, no_update, no_update, no_update, no_update
 
     # Prefer local browser copy; fallback to server file
     if store_players:
@@ -742,16 +775,107 @@ def snake_seed_attending(tab, store_players):
     else:
         players_df = players_load()
         if players_df is None or players_df.empty:
-            return [], None
+            return [], [], [], [], "0 selected"
 
     if players_df is None or players_df.empty:
-        return [], None
+        return [], [], [], [], "0 selected"
 
-    options = [{"label": f'{r["name"]} (#{r["jersey"]})', "value": int(r["player_id"])} for _, r in players_df.iterrows()]
-    values = [int(r["player_id"]) for _, r in players_df.iterrows()]
-    values = values[:MAX_ATTENDING]
-    return options, values
+    # Build options as "checkbox chips"
+    def label_for(r):
+        j = f"#{int(r['jersey'])}" if not pd.isna(r["jersey"]) else ""
+        return f"{r['name']} {j}".strip()
 
+    options = [{"label": label_for(r), "value": int(r["player_id"])} for _, r in players_df.iterrows()]
+    all_ids = [int(r["player_id"]) for _, r in players_df.iterrows()]
+
+    # Default selection = all up to cap
+    default_vals = all_ids[:MAX_ATTENDING]
+    val = current_val if current_val else default_vals
+    val = val[:MAX_ATTENDING]
+
+    count_text = f"{len(val)} selected (max {MAX_ATTENDING})"
+    return options, val, val, all_ids, count_text
+
+@app.callback(
+    Output("snake-attending-list", "options", allow_duplicate=True),
+    Output("snake-attending-list", "value", allow_duplicate=True),
+    Output("snake-attending-prev", "data", allow_duplicate=True),
+    Output("snake-picker-err", "children"),
+    Output("snake-count", "children", allow_duplicate=True),
+    Input("snake-search", "value"),
+    Input("snake-select-all", "n_clicks"),
+    Input("snake-clear", "n_clicks"),
+    Input("snake-invert", "n_clicks"),
+    Input("snake-attending-list", "value"),
+    State("snake-attending-list", "options"),
+    State("snake-attending-prev", "data"),
+    State("snake-attending-all", "data"),
+    prevent_initial_call=True
+)
+def snake_picker(search, n_all, n_clear, n_invert, new_val, options, prev_val, all_ids):
+    trig = ctx.triggered_id
+    options = options or []
+    prev_val = prev_val or []
+    all_ids = all_ids or []
+
+    # Helper to rebuild options after search
+    def filter_options(q):
+        if not q:
+            return options
+        q = str(q).strip().lower()
+        def match(lbl):
+            return (q in str(lbl).lower()) or q.lstrip("#") in str(lbl).lower()
+        return [{"label": o["label"], "value": o["value"]} for o in options if match(o["label"])]
+
+    err = ""
+    count_text = f"{len(new_val or [])} selected (max {MAX_ATTENDING})"
+
+    if trig == "snake-select-all" and n_all:
+        filtered_opts = filter_options(search)
+        filtered_ids = [o["value"] for o in filtered_opts]
+        val = filtered_ids[:MAX_ATTENDING]
+        count_text = f"{len(val)} selected (max {MAX_ATTENDING})"
+        return filtered_opts, val, val, err, count_text
+
+    if trig == "snake-clear" and n_clear:
+        filtered_opts = filter_options(search)
+        return filtered_opts, [], [], err, "0 selected (max %d)" % MAX_ATTENDING
+
+    if trig == "snake-invert" and n_invert:
+        filtered_opts = filter_options(search)
+        filtered_ids = [o["value"] for o in filtered_opts]
+        current = set(new_val or [])
+        inverted = [v for v in filtered_ids if v not in current]
+        # enforce cap
+        val = inverted[:MAX_ATTENDING]
+        if len(inverted) > MAX_ATTENDING:
+            err = f"Limited to {MAX_ATTENDING} after invert."
+        count_text = f"{len(val)} selected (max {MAX_ATTENDING})"
+        return filtered_opts, val, val, err, count_text
+
+    # Checklist changed or search typed
+    filtered_opts = filter_options(search)
+
+    if trig == "snake-search":
+        # keep current selection but hide non-matching; Dash keeps value even if not visible
+        # We leave value as-is; user can still generate.
+        return filtered_opts, new_val or [], new_val or [], err, count_text
+
+    if trig == "snake-attending-list":
+        # enforce cap; if exceeded, revert to previous
+        val = new_val or []
+        if len(val) > MAX_ATTENDING:
+            err = f"Max {MAX_ATTENDING} players. Extra selections ignored."
+            count_text = f"{len(prev_val)} selected (max {MAX_ATTENDING})"
+            return filtered_opts, prev_val, prev_val, err, count_text
+        else:
+            count_text = f"{len(val)} selected (max {MAX_ATTENDING})"
+            return filtered_opts, val, val, "", count_text
+
+    # Default pass-through
+    return filtered_opts, new_val or [], new_val or [], err, count_text
+
+# ---------- TAB 3 GENERATE CALLBACK ----------
 @app.callback(
     Output("snake-seeding-table", "data"),
     Output("snake-lineups-table", "data"),
@@ -765,11 +889,11 @@ def snake_seed_attending(tab, store_players):
     Output("snake-msg", "children"),
     Output("snake-err", "children"),
     Input("snake-generate", "n_clicks"),
-    State("snake-attending", "value"),
+    State("snake-attending-list", "value"),
     State("snake-k", "value"),
     State("snake-periods", "value"),
-    State("players-store", "data"),   # read players from browser
-    State("weights-store", "data"),   # read weights from browser
+    State("players-store", "data"),
+    State("weights-store", "data"),
     prevent_initial_call=True
 )
 def snake_generate(n, attending_ids, k_on, periods, store_players, store_weights):
@@ -777,7 +901,6 @@ def snake_generate(n, attending_ids, k_on, periods, store_players, store_weights
         return (no_update, no_update, no_update, no_update, no_update, no_update,
                 no_update, no_update, no_update, no_update, no_update)
 
-    # Get players/weights from localStorage first; fallback to server files if needed
     players = pd.DataFrame(store_players) if store_players else players_load()
     weights = pd.DataFrame(store_weights) if store_weights else weights_load()
 
@@ -792,13 +915,12 @@ def snake_generate(n, attending_ids, k_on, periods, store_players, store_weights
 
     if not attending_ids:
         return [], [], [], empty_cols, [], names_cols, None, None, None, "", "No attending players selected."
+    if len(attending_ids) > MAX_ATTENDING:
+        attending_ids = attending_ids[:MAX_ATTENDING]
     if k_on is None or k_on < 1:
         return [], [], [], empty_cols, [], names_cols, None, None, None, "", "Players on court must be at least 1."
     if periods is None or periods < 1:
         return [], [], [], empty_cols, [], names_cols, None, None, None, "", "Number of periods must be at least 1."
-
-    if len(attending_ids) > MAX_ATTENDING:
-        attending_ids = attending_ids[:MAX_ATTENDING]
 
     players_att = players[players["player_id"].isin(attending_ids)].copy()
     if len(players_att) < k_on:
@@ -819,7 +941,6 @@ def snake_generate(n, attending_ids, k_on, periods, store_players, store_weights
     names_df = schedule_to_names(schedule_df)
 
     try:
-        # In hosted envs, DATA_ROOT may be ephemeral. OK for downloads; not durable.
         schedule_df.to_csv(EXPORT_LINEUPS, index=False)
         seeded_view.to_csv(EXPORT_SEEDING, index=False)
         if not wide_df.empty:
@@ -828,7 +949,6 @@ def snake_generate(n, attending_ids, k_on, periods, store_players, store_weights
     except Exception as e:
         msg = f"Generated {periods} periods. Export failed: {e}"
 
-    # Wide table payload
     if wide_df.empty:
         wide_cols = [{"name": "period", "id": "period"}]
         wide_data = []
@@ -836,7 +956,6 @@ def snake_generate(n, attending_ids, k_on, periods, store_players, store_weights
         wide_cols = [{"name": c, "id": c} for c in wide_df.columns]
         wide_data = wide_df.to_dict(orient="records")
 
-    # Names table payload
     if names_df.empty:
         n_cols = [{"name":"period","id":"period"},{"name":"players","id":"players"}]
         names_data = []
@@ -867,7 +986,6 @@ def health():
 # MAIN
 # -----------------------------
 if __name__ == "__main__":
-    # Local run defaults
     PERSIST_PLAYERS.parent.mkdir(parents=True, exist_ok=True)
     PERSIST_WEIGHTS.parent.mkdir(parents=True, exist_ok=True)
     host = os.getenv("HOST", "0.0.0.0")
