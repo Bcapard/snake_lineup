@@ -453,7 +453,25 @@ app.layout = html.Div(
                         ]),
                         html.Br(),
                         html.Label("Select attending players (max 12)"),
-                        dcc.Dropdown(id="snake-attending", options=[], value=None, multi=True, placeholder="(defaults to all saved players)"),
+                        # chips: Checklist (same id) replaces Dropdown
+                        html.Div(
+                            dcc.Checklist(
+                                id="snake-attending",
+                                options=[],
+                                value=[],  # seeded by callback below
+                                inputClassName="chip-input",
+                                labelClassName="chip-label",
+                                className="chip-group",
+                            ),
+                            style={"display":"flex","flexWrap":"wrap","gap":"8px","marginTop":"6px"}
+                        ),
+                        html.Div(
+                            [
+                                html.Button("Select all", id="snake-select-all", n_clicks=0),
+                                html.Button("Clear", id="snake-clear", n_clicks=0),
+                            ],
+                            style={"marginTop":"8px","display":"flex","gap":"8px"}
+                        ),
                         html.Br(),
                         html.Button("Generate Lineups", id="snake-generate", n_clicks=0, style={"background": "#0b5ed7", "color": "white"}),
                         html.Button("Export CSV", id="snake-export", n_clicks=0, style={"marginLeft": "8px", "display": "none"}),
@@ -742,15 +760,34 @@ def snake_seed_attending(tab, store_players):
     else:
         players_df = players_load()
         if players_df is None or players_df.empty:
-            return [], None
+            return [], []   # checklist expects list
 
     if players_df is None or players_df.empty:
-        return [], None
+        return [], []       # checklist expects list
 
     options = [{"label": f'{r["name"]} (#{r["jersey"]})', "value": int(r["player_id"])} for _, r in players_df.iterrows()]
     values = [int(r["player_id"]) for _, r in players_df.iterrows()]
     values = values[:MAX_ATTENDING]
     return options, values
+
+# Bulk select / clear buttons for chips
+@app.callback(
+    Output("snake-attending", "value"),
+    Input("snake-select-all", "n_clicks"),
+    Input("snake-clear", "n_clicks"),
+    State("snake-attending", "options"),
+    prevent_initial_call=True
+)
+def chip_bulk(n_all, n_clear, options):
+    trig = ctx.triggered_id
+    if not options:
+        return no_update
+    all_ids = [opt["value"] for opt in options]
+    if trig == "snake-select-all":
+        return all_ids[:MAX_ATTENDING]
+    if trig == "snake-clear":
+        return []
+    return no_update
 
 @app.callback(
     Output("snake-seeding-table", "data"),
