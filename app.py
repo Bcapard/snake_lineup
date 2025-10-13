@@ -215,19 +215,37 @@ def compute_composites(players_df: pd.DataFrame, weights_df: pd.DataFrame) -> pd
     out["composite"] = np.round(comp, 4)
     return out
 
-def build_u10_snake_seeding(comp_df: pd.DataFrame, k_on: int):
-    df = comp_df.sort_values(["composite", "player_id"], ascending=[False, True]).reset_index(drop=True)
-    df["initial_rank"] = np.arange(1, len(df)+1, dtype=int)
-    df["chunk"] = ((df["initial_rank"] - 1) // k_on) + 1
-    df["position_in_chunk"] = ((df["initial_rank"] - 1) % k_on) + 1
-    chunk_sizes = df.groupby("chunk")["player_id"].size().to_dict()
-    df["chunk_size"] = df["chunk"].map(chunk_sizes)
-    df["position_for_sort"] = np.where(
-        (df["chunk"] % 2) == 1,
-        df["position_in_chunk"],
-        df["chunk_size"] - df["position_in_chunk"] + 1
+def _swap_4_5_with_8_9(sorted_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Expect sorted_df already sorted by composite desc, player_id asc.
+    If there are at least 9 players, swap positions:
+      4 <-> 8 and 5 <-> 9 (1-based ranks), i.e., zero-based 3<->7 and 4<->8.
+    """
+    n = len(sorted_df)
+    if n < 9:
+        return sorted_df.reset_index(drop=True)
+    order = list(range(n))
+    order[3], order[7] = order[7], order[3]
+    order[4], order[8] = order[8], order[4]
+    return sorted_df.iloc[order].reset_index(drop=True)
+
+def build_u10_snake_seeding(comp_df: pd.DataFrame, k_on: int, do_swap: bool = False):
+    # Sort by composite desc, tie-break by player_id asc
+    base = comp_df.sort_values(["composite", "player_id"], ascending=[False, True]).reset_index(drop=True)
+    if do_swap:
+        base = _swap_4_5_with_8_9(base)
+
+    base["initial_rank"] = np.arange(1, len(base)+1, dtype=int)
+    base["chunk"] = ((base["initial_rank"] - 1) // k_on) + 1
+    base["position_in_chunk"] = ((base["initial_rank"] - 1) % k_on) + 1
+    chunk_sizes = base.groupby("chunk")["player_id"].size().to_dict()
+    base["chunk_size"] = base["chunk"].map(chunk_sizes)
+    base["position_for_sort"] = np.where(
+        (base["chunk"] % 2) == 1,
+        base["position_in_chunk"],
+        base["chunk_size"] - base["position_in_chunk"] + 1
     )
-    df = df.sort_values(["chunk", "position_for_sort", "player_id"], ascending=[True, True, True]).reset_index(drop=True)
+    df = base.sort_values(["chunk", "position_for_sort", "player_id"], ascending=[True, True, True]).reset_index(drop=True)
     df["seed_order"] = np.arange(1, len(df)+1, dtype=int)
     return df
 
@@ -244,8 +262,8 @@ def _row(rec, period, pos):
         "composite": float(rec["composite"]),
     }
 
-def build_full_schedule(comp_df: pd.DataFrame, periods: int, k_on: int):
-    seeded = build_u10_snake_seeding(comp_df, k_on)
+def build_full_schedule(comp_df: pd.DataFrame, periods: int, k_on: int, do_swap: bool = False):
+    seeded = build_u10_snake_seeding(comp_df, k_on, do_swap=do_swap)
     order = seeded.sort_values("seed_order").reset_index(drop=True)
     N = len(order)
     rows = []
@@ -270,7 +288,6 @@ def schedule_to_wide(schedule_df: pd.DataFrame, seeded: pd.DataFrame) -> pd.Data
         subset = schedule_df[schedule_df["period"] == p]
         for _, r in subset.iterrows():
             wide.loc[wide["period"] == p, r["name"]] = str(int(r["pos"]))
-
     return wide
 
 def schedule_to_names(schedule_df: pd.DataFrame) -> pd.DataFrame:
@@ -496,6 +513,17 @@ app.layout = html.Div(
                         ),
 
                         html.Div(id="snake-picker-err", style={"marginTop": "8px", "color": "#b00020"}),
+
+                        # --- NEW: Optional swap toggle ---
+                        html.Div(style={"marginTop": "12px"}, children=[
+                            dcc.Checklist(
+                                id="snake-swap",
+                                options=[{"label": "Swap ranks 4 & 5 with 8 & 9 before generating", "value": "swap"}],
+                                value=[],
+                                inputStyle={"width": "18px", "height": "18px"},
+                                labelStyle={"display": "inline-flex", "alignItems": "center", "gap": "8px"}
+                            )
+                        ]),
 
                         html.Br(),
                         html.Button("Generate Lineups", id="snake-generate", n_clicks=0, style={"background": "#0E2B5C", "color": "white"}),
@@ -894,9 +922,10 @@ def snake_picker(search, n_all, n_clear, n_invert, new_val, options, prev_val, a
     State("snake-periods", "value"),
     State("players-store", "data"),
     State("weights-store", "data"),
+    State("snake-swap", "value"),  # NEW
     prevent_initial_call=True
 )
-def snake_generate(n, attending_ids, k_on, periods, store_players, store_weights):
+def snake_generate(n, attending_ids, k_on, periods, store_players, store_weights, swap_value):
     if not n:
         return (no_update, no_update, no_update, no_update, no_update, no_update,
                 no_update, no_update, no_update, no_update, no_update)
@@ -931,9 +960,10 @@ def snake_generate(n, attending_ids, k_on, periods, store_players, store_weights
         return [], [], [], empty_cols, [], names_cols, None, None, None, "", f"Weights invalid: {'; '.join(wissues)}"
 
     comp_df = compute_composites(players_att, weights)
+    do_swap = bool(swap_value and ("swap" in swap_value))
 
     try:
-        seeded_view, schedule_df = build_full_schedule(comp_df, periods=periods, k_on=k_on)
+        seeded_view, schedule_df = build_full_schedule(comp_df, periods=periods, k_on=k_on, do_swap=do_swap)
     except Exception as e:
         return [], [], [], empty_cols, [], names_cols, None, None, None, "", f"Schedule build error: {e}"
 
@@ -945,7 +975,7 @@ def snake_generate(n, attending_ids, k_on, periods, store_players, store_weights
         seeded_view.to_csv(EXPORT_SEEDING, index=False)
         if not wide_df.empty:
             wide_df.to_csv(EXPORT_WIDE, index=False)
-        msg = f"Generated {periods} periods."
+        msg = f"Generated {periods} periods." + (" (Swap 4/5 ↔ 8/9 applied)" if do_swap else "")
     except Exception as e:
         msg = f"Generated {periods} periods. Export failed: {e}"
 
